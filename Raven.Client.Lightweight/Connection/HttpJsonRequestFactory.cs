@@ -1,5 +1,6 @@
 ﻿#if !NETFX_CORE && !SILVERLIGHT
 using System;
+using System.Configuration;
 #if SILVERLIGHT || NETFX_CORE
 using Raven.Client.Silverlight.MissingFromSilverlight;
 #else
@@ -36,10 +37,68 @@ namespace Raven.Client.Connection
 		/// </summary>
 		public event EventHandler<RequestResultArgs> LogRequest = delegate { };
 
-		/// <summary>
-		/// Invoke the LogRequest event
-		/// </summary>
-		internal void InvokeLogRequest(IHoldProfilingInformation sender, Func<RequestResultArgs> generateRequestResult)
+	    private static int? checkMemoryOnNthRequestInterval;
+        /// <summary>
+        /// The number of requests made between each check of the system's available memory to see if the <seealso cref="SimpleCache"/> should be cleared (default: 1000)
+        /// </summary>
+	    public static int CheckMemoryOnNthRequestInterval
+	    {
+	        get
+	        {
+	            if (checkMemoryOnNthRequestInterval.HasValue)
+	            {
+	                return checkMemoryOnNthRequestInterval.Value;
+	            }
+
+	            var setting = ConfigurationManager.AppSettings["RavenClient/CheckMemoryOnNthRequestInterval"];
+
+	            int interval;
+	            checkMemoryOnNthRequestInterval =
+	                int.TryParse(setting, out interval)
+	                    ? interval
+	                    : 1000;
+
+	            return checkMemoryOnNthRequestInterval.Value;
+	        }
+	        set
+	        {
+	            checkMemoryOnNthRequestInterval = value;
+	        }
+	    }
+
+	    private static int? systemAvailableMemoryThreshold;
+        /// <summary>
+        /// The minimum threshold of available memory (in MBytes) that the system must have in order to prevent <seealso cref="SimpleCache"/> from evicting entries (default: 1024)
+        /// </summary>
+	    public static int SystemAvailableMemoryThreshold
+        {
+	        get
+	        {
+	            if (systemAvailableMemoryThreshold.HasValue)
+	            {
+	                return systemAvailableMemoryThreshold.Value;
+	            }
+
+	            var setting = ConfigurationManager.AppSettings["RavenClient/SystemAvailableMemoryThreshold"];
+
+	            int interval;
+	            systemAvailableMemoryThreshold =
+	                int.TryParse(setting, out interval)
+	                    ? interval
+	                    : 1024;
+
+	            return systemAvailableMemoryThreshold.Value;
+	        }
+	        set
+	        {
+	            systemAvailableMemoryThreshold = value;
+	        }
+	    }
+
+        /// <summary>
+        /// Invoke the LogRequest event
+        /// </summary>
+        internal void InvokeLogRequest(IHoldProfilingInformation sender, Func<RequestResultArgs> generateRequestResult)
 		{
 			var handler = LogRequest;
 			if (handler != null) 
@@ -112,7 +171,7 @@ namespace Raven.Client.Connection
 			if (cache != null)
 				cache.Dispose();
 
-			cache = new SimpleCache(maxNumberOfCachedRequests);
+			cache = new SimpleCache(maxNumberOfCachedRequests, CheckMemoryOnNthRequestInterval, SystemAvailableMemoryThreshold);
 			NumOfCachedRequests = 0;
 		}
 

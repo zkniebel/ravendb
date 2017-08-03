@@ -18,8 +18,20 @@ namespace Raven.Client.Util
 
 		private readonly ConcurrentDictionary<string, DateTime> lastWritePerDb = new ConcurrentDictionary<string, DateTime>();
 
-		public SimpleCache(int maxNumberOfCacheEntries)
-		{
+	    /// <summary>
+	    /// The number of requests made between each check of the system's available memory to see if the <seealso cref="SimpleCache"/> should be cleared (default: 1000)
+	    /// </summary>
+        private readonly int checkMemoryOnNthRequestInterval;
+	    /// <summary>
+	    /// The minimum threshold of available memory (in MBytes) that the system must have in order to prevent <seealso cref="SimpleCache"/> from evicting entries (default: 1024)
+	    /// </summary>
+        private readonly int systemAvailableMemoryThreshold;
+
+        public SimpleCache(int maxNumberOfCacheEntries, int checkMemoryOnNthRequestInterval, int systemAvailableMemoryThreshold)
+        {
+            this.checkMemoryOnNthRequestInterval = checkMemoryOnNthRequestInterval;
+            this.systemAvailableMemoryThreshold = systemAvailableMemoryThreshold;
+
 			actualCache = new ConcurrentDictionary<string, CachedRequest>();
 			lruKeys = new ConcurrentLruLSet<string>(maxNumberOfCacheEntries, key =>
 			{
@@ -107,7 +119,7 @@ namespace Raven.Client.Util
 		private void TryClearMemory()
 		{
 			var availableMemory = AvailableMemory;
-			if (AvailableMemory != -1 && availableMemory < 1024) // clear the cache if there is low memory
+			if (AvailableMemory != -1 && availableMemory < systemAvailableMemoryThreshold) // clear the cache if there is low memory
 			{
 				lruKeys.ClearHalf();
 			}
@@ -119,7 +131,7 @@ namespace Raven.Client.Util
 			if (actualCache.TryGetValue(key, out value))
 			{
 				lruKeys.Push(key);
-				if (Interlocked.Increment(ref memoryPressureCounterOnGet) % 1000 == 0) // check every 1000 gets
+				if (Interlocked.Increment(ref memoryPressureCounterOnGet) % checkMemoryOnNthRequestInterval == 0) // check every 1000 gets
 				{
 					TryClearMemory();
 				}
