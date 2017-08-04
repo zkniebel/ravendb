@@ -48,3 +48,4 @@ Testresults
 /Raven.Client.MvcIntegration/Content/ravendb-profiler.min.js
 /*.shfbproj_Fitzchak
 Raven.Studio/Settings.dat
+.vs/config/applicationhost.config
